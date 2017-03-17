@@ -1,0 +1,372 @@
+<!doctype html>
+<html>
+ <head> 
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8"> 
+  <meta http-equiv="pragma" content="no-cache"> 
+  <meta http-equiv="Cache-Control" content="no-cache, must-revalidate"> 
+  <meta http-equiv="expires" content="Wed, 26 Feb 1997 08:21:57 GMT"> 
+  <link rel="stylesheet" type="text/css" href="css/demomain.css"> 
+  <link rel="stylesheet" type="text/css" href="plugin/jquery-easyui-1.4/themes/Neusoft/easyui.css"> 
+  <link rel="stylesheet" type="text/css" href="plugin/jquery-easyui-1.4/themes/icon.css"> 
+  <link rel="stylesheet" type="text/css" href="plugin/jquery-easyui-1.4/themes/color.css"> 
+  <link rel="stylesheet" type="text/css" href="plugin/jquery-easyui-1.4/demo/demo.css"> 
+  <title>测试人员的报告</title> 
+  <script language="javascript" src="jsfuns/pubFuncs.js"></script> 
+  <script language="javascript" src="jsfuns/2DFuncs.js"></script> 
+  <!-- script src="js/jquery-1.11.1.min.js"></script --> 
+  <script src="plugin/jquery-easyui-1.4/jquery.min.js"></script> 
+  <script src="plugin/jquery-easyui-1.4/jquery.easyui.min.js"></script> 
+  <script type="text/javascript" src="plugin/ZeroClipboard/ZeroClipboard.js"></script> 
+ </head> 
+ <body style="overflow:scroll;overflow-y:hidden;overflow-x:hidden" oncontextmenu="return false"> 
+  <div class="easyui-panel" style="position:absolute;left:40%;top:97%"> 
+   <div id="pp" class="easyui-pagination" data-options="total:100,
+					buttons:recoverBtn,
+					showPageList: false,
+					showRefresh: false,
+					displayMsg: ''
+					"></div> 
+  </div> 
+  <script>
+		var reportid="109000492892";
+		var rpturi="{'1': 'https://dreamer2618.github.io/web0.png', '2': 'https://dreamer2618.github.io/web1.jpg'}";
+		var rptPageNums = "2";
+		var rptDescribe = "null";
+		var rptDiagnose = "null";
+		var rptType="神经功能";
+		var rptFrozenUri="{";
+		var rptFrozenCount="0";
+		var vBroswerType = getBrowserknl();
+		var jsonURL;
+		var jsonFrozen;
+		var desClip=null, diagClip=null;
+		$(function(){
+			$("#pp").pagination({
+				onSelectPage:function(pageNumber, pageSize){
+					$(this).pagination('loading');
+					reloadReport(pageNumber);
+					$(this).pagination('loaded');
+				}
+			}).find("a.l-btn").tooltip({
+                content: function(){
+                    var cc = $(this).find('span.l-btn-icon').attr('class').split(' ');
+                    var icon = cc[1].split('-')[1];
+					switch(icon)
+					{
+						case "reload":
+							return "重载";
+						case "copydes":
+							return "复制描述";
+						case "copydiag":
+							return "复制诊断";
+						case "checkMoreRpt":
+							return "查看冰冻报告";
+						case "first":
+							return "首页";
+						case "prev":
+							return "前一页";
+						case "next":
+							return "下一页";
+						case "last":
+							return "末页";
+					}
+                    return icon;
+                }
+            });
+			if(rptType != "病理")
+				$("#MoreRpt").hide();
+		});
+
+		var recoverBtn = [{
+			iconCls:'icon-reload',
+			id:'reloadid',
+			handler:function(){
+				var vRpt = document.getElementById("rptimg");
+				if(vBroswerType.name != "gecko")
+					vRpt.style.zoom = "100%";
+				else
+				{
+					vRpt.style.width = vRpt.imgSize.oriWidth + 'px';
+					vRpt.style.height = vRpt.imgSize.oriHeight + 'px';
+					vRpt.imgSize.bFit = false;
+				}
+			}
+		},{
+			iconCls:'icon-copydes',
+			id:'cpDescribe',
+			handler:function(){
+
+			}
+		},{
+			iconCls:'icon-copydiag',
+			id:'cpDiagnose',
+			handler:function(){
+
+			}
+		},{
+			iconCls:'icon-checkMoreRpt',
+			id:'MoreRpt',
+			handler:function(){
+				var iFrozen = parseInt(rptFrozenCount);
+				if(!iFrozen)
+					$.messager.alert('冰冻报告', "没有相关的冰冻报告!");
+				else
+				{
+					var frozenFinal="";
+					for(var i=1; i < iFrozen+1; i++)
+					{
+						frozenFinal += "报告"+i +":<br>"+jsonFrozen[i];
+					}
+					$.messager.alert('冰冻报告', frozenFinal);
+				}
+			}
+		}];
+		
+		
+		function createReport(rptId)
+		{
+			var repDiv = document.getElementById(rptId);
+			if(repDiv == null && rptId)
+			{
+				repDiv = document.createElement('div');
+				repDiv.setAttribute("id", rptId);
+				repDiv.setAttribute("class", "report");
+				repDiv.style.position = 'absolute';
+				var wid =100,
+					hit = 97;
+				var l = 100-wid,
+					t = 0;
+				repDiv.style.height = hit.toString() + '%';
+				repDiv.style.width = wid.toString() + '%';
+				repDiv.style.top = t.toString() + '%';
+				repDiv.style.left = l.toString() + '%';
+				repDiv.style.border = "solid 1px cyan";
+				repDiv.style.textAlign = "center";
+				repDiv.style.overflow = "auto";
+				repDiv.style.zIndex = 0;
+				
+				if(vBroswerType.name != "gecko")
+					repDiv.addEventListener("mousewheel", zoomReport_nff, false);
+				else
+					repDiv.addEventListener("DOMMouseScroll", zoomReport_ff, false);
+				
+				var rptImg = document.createElement('img');
+		  	rptImg.setAttribute("id", "rptimg");
+		  	rptImg.src = jsonURL[1];
+		  	rptImg.onload = function(){
+			  	this.imgSize = new Object();
+			  	this.imgSize.oriWidth = this.naturalWidth;
+			  	this.imgSize.oriHeight = this.naturalHeight;
+			  	this.imgSize.fitWidth = this.naturalWidth * window.innerHeight /this.naturalHeight;
+			  	this.imgSize.fitHeight = window.innerHeight;
+			  	this.imgSize.bFit = false;
+		  		repDiv.appendChild(this);
+		  		repDiv.bLoad = true;
+		  	};
+		  	rptImg.onerror = function() {
+		  		repDiv.bLoad = false;
+		  		$.messager.show({
+						title:'Error',
+						msg:'所选检查的报告不存在或下载报告出错!',
+						timeout:5000,
+						showType:'fade'
+					});
+		  	};
+		  	rptImg.ondblclick = function(){
+		  		this.style.zoom = "100%";
+		  		if(!this.imgSize.bFit)
+		  		{
+		  			if(vBroswerType.name != "gecko"){
+		  				this.width = this.imgSize.fitWidth;
+		  				this.height = this.imgSize.fitHeight;
+		  			}
+		  			else{
+		  				this.style.width = this.imgSize.fitWidth + 'px';
+							this.style.height = this.imgSize.fitHeight + 'px';
+		  			}
+		  			this.imgSize.bFit = true;
+		  		}
+		  		else
+		  		{
+		  			if(vBroswerType.name != "gecko"){
+		  				this.width = this.imgSize.oriWidth;
+		  				this.height = this.imgSize.oriHeight;
+		  			}
+		  			else{
+		  				this.style.width = this.imgSize.oriWidth + 'px';
+							this.style.height = this.imgSize.oriHeight + 'px';
+		  			}
+		  			this.imgSize.bFit = false;
+		  		}
+		  	};
+		  	document.body.appendChild(repDiv);
+			}
+			repDiv.style.display = "";
+			var imgArray = document.getElementsByClassName('series_div');
+			for(var i =0; i < imgArray.length; i++)
+				imgArray[i].style.display = "none";
+			if(repDiv.bLoad == false)
+			{
+				$.messager.show({
+					title:'Error',
+					msg:'所选检查的报告不存在或下载报告出错!',
+					timeout:5000,
+					showType:'fade'
+				});
+			}
+		}
+		function updatePagination()
+		{
+			var pN = parseInt(rptPageNums)*10;
+			$("#pp").pagination({
+				total:pN,
+				onSelectPage:function(pageNumber, pageSize){
+					$(this).pagination('loading');
+					reloadReport(pageNumber);
+					$(this).pagination('loaded');
+				}
+			}).find("a.l-btn").tooltip({
+                content: function(){
+                    var cc = $(this).find('span.l-btn-icon').attr('class').split(' ');
+                    var icon = cc[1].split('-')[1];
+					switch(icon)
+					{
+						case "reload":
+							return "重载";
+						case "copydes":
+							return "复制描述";
+						case "copydiag":
+							return "复制诊断";
+						case "checkMoreRpt":
+							return "查看冰冻报告";
+						case "first":
+							return "首页";
+						case "prev":
+							return "前一页";
+						case "next":
+							return "下一页";
+						case "last":
+							return "末页";
+					}
+                    return icon;
+                }
+            });
+			if(rptType != "病理")
+				$("#MoreRpt").hide();
+		}
+		
+		function reloadReport(pageNumber)
+		{
+			$('#rptimg').attr('src', jsonURL[pageNumber]);
+		}
+		
+		function zoomReport_ff(e)
+		{
+			var vimg = document.getElementById("rptimg");
+			if(vimg)
+			{
+				var zoom=parseInt(vimg.style.zoom,10)||100;
+				zoom -= e.detail/3*10;
+				if(zoom > 0)
+				{
+					var w= vimg.width;
+					var h= vimg.height;		
+					vimg.style.width= w*zoom/100+'px';
+					vimg.style.height = h*zoom/100+'px';
+				}
+			}
+			e.preventDefault();
+		}
+		
+		function zoomReport_nff(e)
+		{
+			var vimg = document.getElementById("rptimg");
+			if(vimg)
+			{
+				var zoom=parseInt(vimg.style.zoom,10)||100;
+				zoom += e.wheelDelta/12;
+				if(zoom > 0)
+					vimg.style.zoom= zoom+"%";
+			}
+			e.preventDefault();
+		}
+		function setClipBorad()
+		{
+			desClip = new ZeroClipboard.Client();
+			ZeroClipboard.setMoviePath( 'plugin/ZeroClipboard/ZeroClipboard.swf' );
+			desClip.setText( '' ); 
+			desClip.setHandCursor( true );
+			desClip.setCSSEffects( true );
+
+			desClip.addEventListener( 'mouseDown', function(client) {
+				desClip.show();
+				desClip.setText(rptDescribe);
+				$.messager.show({
+					title:'提示',
+					msg:'描述信息已经被复制在剪切板上!',
+					timeout:2000,
+					showType:'fade'
+				});
+			} );
+			desClip.addEventListener( 'mouseover', function(client) {
+				$("#cpDescribe").tooltip("show");
+			} );
+			desClip.addEventListener( 'mouseout', function(client) {
+				$("#cpDescribe").tooltip("hide");
+			} );
+			desClip.glue( 'cpDescribe' );
+
+			diagClip = new ZeroClipboard.Client();
+			ZeroClipboard.setMoviePath( 'plugin/ZeroClipboard/ZeroClipboard.swf' );
+			diagClip.setText( '' ); 
+			diagClip.setHandCursor( true );
+			diagClip.setCSSEffects( true );
+
+			diagClip.addEventListener( 'mouseDown', function(client) {
+				diagClip.show();
+				diagClip.setText(rptDiagnose);
+				$.messager.show({
+					title:'提示',
+					msg:'诊断信息已经被复制在剪切板上!',
+					timeout:2000,
+					showType:'fade'
+				});
+			} );
+			
+			diagClip.addEventListener( 'mouseover', function(client) {
+				$("#cpDiagnose").tooltip("show");
+			} );
+			diagClip.addEventListener( 'mouseout', function(client) {
+				$("#cpDiagnose").tooltip("hide");
+			} );
+			diagClip.glue( 'cpDiagnose' );
+		}
+		
+		window.onload = function() 
+		{
+			jsonURL = eval("("+unescape(rpturi)+")");
+			if(rptFrozenCount > 0)
+				jsonFrozen = eval("("+unescape(rptFrozenUri)+")");
+			createReport(reportid);
+			updatePagination();
+			setClipBorad();
+			window.applicationCache.addEventListener("updateready", function(event){
+				window.applicationCache.swapCache();
+				$.messager.show({
+					title:'提示',
+					msg:'页面缓存被更新, 请刷新浏览器更新版本!',
+					timeout:3000,
+					showType:'fade'
+				});
+			},false);
+		};
+		
+		window.onresize = function() {
+			if(desClip)
+				desClip.reposition();
+			if(diagClip)
+				diagClip.reposition();
+		}
+	</script>   
+ </body>
+</html>
